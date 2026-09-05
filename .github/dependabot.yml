@@ -1,0 +1,22 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /gwi_v2
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      backend-deps:
+        patterns: ["*"]
+  - package-ecosystem: docker
+    directory: /gwi_v2
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /gwi_v2_frontend
+    schedule:
+      interval: weekly

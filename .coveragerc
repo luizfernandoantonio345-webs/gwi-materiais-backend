@@ -1,0 +1,14 @@
+[run]
+source = app
+omit =
+    app/seed.py
+    app/logging_conf.py
+    tests/*
+    alembic/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
+    raise NotImplementedError
+show_missing = True
