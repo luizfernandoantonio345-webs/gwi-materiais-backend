@@ -7,7 +7,7 @@ from .config import get_settings
 from .database import Base, engine
 from .errors import registrar_handlers
 from .logging_conf import configurar_logging
-from .routers import auth, catalogo, operacoes, pedidos
+from .routers import auth, catalogo, operacoes, pedidos, requisicoes
 from .security.middleware import (
     IdempotencyMiddleware,
     RateLimitMiddleware,
@@ -53,6 +53,7 @@ app.include_router(auth.router)
 app.include_router(catalogo.router)
 app.include_router(pedidos.router)
 app.include_router(operacoes.router)
+app.include_router(requisicoes.router)
 
 
 @app.get("/health/live", tags=["Infra"])

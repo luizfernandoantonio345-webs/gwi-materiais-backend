@@ -12,7 +12,6 @@ class Papel(str, enum.Enum):
     ALMOXARIFE = "ALMOXARIFE"
     ADM_COMPRAS = "ADM_COMPRAS"
     GERENTE = "GERENTE"
-    DIRETOR = "DIRETOR"
 
 
 class Usuario(Base, TenantMixin, AuditMixin):

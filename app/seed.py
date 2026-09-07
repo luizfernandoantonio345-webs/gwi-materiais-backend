@@ -13,8 +13,7 @@ SENHA = "Gramo@Forte2026!"
 USUARIOS = [
     ("Ana Ribeiro", "almoxarife@gramo.com", Papel.ALMOXARIFE, 0),
     ("Carlos Menezes", "compras@gramo.com", Papel.ADM_COMPRAS, 0),
-    ("Rita Duarte", "gerente@gramo.com", Papel.GERENTE, 50000),
-    ("Paulo Andrade", "diretor@gramo.com", Papel.DIRETOR, 10_000_000),
+    ("Rita Duarte", "gerente@gramo.com", Papel.GERENTE, 999_999_999),
 ]
 CLASSES = [("ABR", "Abrasivos"), ("FER", "Ferramentas"), ("EPI", "EPI"), ("ELE", "Elétrica")]
 MATERIAIS = [

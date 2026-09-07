@@ -78,7 +78,7 @@ def upgrade() -> None:
         sa.Column("nome", sa.String(length=120), nullable=False),
         sa.Column("email", sa.String(length=160), nullable=False),
         sa.Column("senha_hash", sa.String(length=200), nullable=False),
-        sa.Column("papel", sa.Enum("ALMOXARIFE", "ADM_COMPRAS", "GERENTE", "DIRETOR", name="papel"), nullable=False),
+        sa.Column("papel", sa.Enum("ALMOXARIFE", "ADM_COMPRAS", "GERENTE", name="papel"), nullable=False),
         sa.Column("ativo", sa.Boolean(), nullable=False),
         sa.Column("limite_alcada", sa.Numeric(precision=14, scale=2), nullable=False),
         sa.Column("mfa_secret", sa.String(length=64), nullable=True),
@@ -135,7 +135,6 @@ def upgrade() -> None:
             sa.Enum(
                 "RASCUNHO",
                 "AGUARDANDO_GERENTE",
-                "AGUARDANDO_DIRETORIA",
                 "APROVADO",
                 "AGUARDANDO_COMPRA",
                 "COMPRADO",

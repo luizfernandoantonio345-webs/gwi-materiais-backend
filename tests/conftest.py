@@ -30,8 +30,7 @@ async def _seed():
             [
                 Usuario(nome="Ana", email="almox@g.com", senha_hash=hash_senha(SENHA), papel=Papel.ALMOXARIFE, limite_alcada=0),
                 Usuario(nome="Carlos", email="compras@g.com", senha_hash=hash_senha(SENHA), papel=Papel.ADM_COMPRAS, limite_alcada=0),
-                Usuario(nome="Rita", email="gerente@g.com", senha_hash=hash_senha(SENHA), papel=Papel.GERENTE, limite_alcada=50000),
-                Usuario(nome="Paulo", email="diretor@g.com", senha_hash=hash_senha(SENHA), papel=Papel.DIRETOR, limite_alcada=10_000_000),
+                Usuario(nome="Rita", email="gerente@g.com", senha_hash=hash_senha(SENHA), papel=Papel.GERENTE, limite_alcada=999_999_999),
             ]
         )
         c1 = ClasseMaterial(codigo="ABR", nome="Abrasivos")

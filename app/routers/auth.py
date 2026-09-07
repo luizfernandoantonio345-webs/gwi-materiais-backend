@@ -2,16 +2,16 @@ import uuid
 from datetime import timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_settings
 from ..database import get_db
 from ..models.base import agora, garantir_aware
 from ..models.usuario import Papel, Usuario
-from ..schemas.api import LoginResp, MfaSetupOut, MfaVerify, RefreshReq, UsuarioCreate, UsuarioOut
+from ..schemas.api import LoginResp, MfaSetupOut, MfaVerify, Pagina, RefreshReq, UsuarioCreate, UsuarioOut, UsuarioUpdate
 from ..security import mfa as mfa_svc
 from ..security.deps import CurrentUser, require_roles
 from ..security.passwords import conferir_senha, hash_senha, validar_forca
@@ -120,16 +120,54 @@ async def mfa_ativar(dados: MfaVerify, usuario: CurrentUser, db: Annotated[Async
     db.add(usuario)
 
 
-@router.post("/usuarios", response_model=UsuarioOut, status_code=201, dependencies=[Depends(require_roles(Papel.DIRETOR))])
-async def criar_usuario(dados: UsuarioCreate, db: Annotated[AsyncSession, Depends(get_db)]):
+@router.get("/usuarios", response_model=Pagina[UsuarioOut], dependencies=[Depends(require_roles(Papel.GERENTE))])
+async def listar_usuarios(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    limit: Annotated[int, Query(ge=1, le=200)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
+):
+    total = int(await db.scalar(select(func.count()).select_from(Usuario)) or 0)
+    stmt = select(Usuario).order_by(Usuario.nome).limit(limit).offset(offset)
+    res = await db.execute(stmt)
+    return Pagina(items=list(res.scalars().all()), total=total, limit=limit, offset=offset)
+
+
+@router.post("/usuarios", response_model=UsuarioOut, status_code=201, dependencies=[Depends(require_roles(Papel.GERENTE))])
+async def criar_usuario(dados: UsuarioCreate, usuario: CurrentUser, db: Annotated[AsyncSession, Depends(get_db)]):
     validar_forca(dados.senha)
     existe = await db.execute(select(Usuario).where(Usuario.email == dados.email))
     if existe.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="E-mail já cadastrado.")
-    usuario = Usuario(
+    novo = Usuario(
         nome=dados.nome, email=dados.email, senha_hash=hash_senha(dados.senha), papel=dados.papel, limite_alcada=dados.limite_alcada
     )
-    db.add(usuario)
+    db.add(novo)
     await db.flush()
-    await db.refresh(usuario)
-    return usuario
+    await audit_service.registrar(db, "usuario_criado", "usuario", usuario.id, str(novo.id))
+    await db.refresh(novo)
+    return novo
+
+
+@router.patch("/usuarios/{usuario_id}", response_model=UsuarioOut, dependencies=[Depends(require_roles(Papel.GERENTE))])
+async def editar_usuario(usuario_id: int, dados: UsuarioUpdate, usuario: CurrentUser, db: Annotated[AsyncSession, Depends(get_db)]):
+    alvo = await db.get(Usuario, usuario_id)
+    if not alvo:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    if dados.nome is not None:
+        alvo.nome = dados.nome
+    if dados.papel is not None:
+        alvo.papel = dados.papel
+    if dados.limite_alcada is not None:
+        alvo.limite_alcada = dados.limite_alcada
+    if dados.ativo is not None:
+        if not dados.ativo and alvo.id == usuario.id:
+            raise HTTPException(status_code=409, detail="Não é possível desativar o próprio usuário.")
+        alvo.ativo = dados.ativo
+    if dados.senha is not None:
+        validar_forca(dados.senha)
+        alvo.senha_hash = hash_senha(dados.senha)
+    db.add(alvo)
+    await db.flush()
+    await audit_service.registrar(db, "usuario_editado", "usuario", usuario.id, str(alvo.id))
+    await db.refresh(alvo)
+    return alvo

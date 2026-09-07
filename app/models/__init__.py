@@ -1,5 +1,6 @@
 from .catalogo import ClasseMaterial, Colaborador, Material, TipoMaterial
 from .estoque import Comodato, MovimentacaoEstoque, StatusComodato, TipoMovimento
+from .requisicao import RequisicaoEstoque, StatusRequisicao
 from .pedido import (
     GrauUrgencia,
     HistoricoPedido,
@@ -29,4 +30,6 @@ __all__ = [
     "RefreshToken",
     "Papel",
     "Usuario",
+    "RequisicaoEstoque",
+    "StatusRequisicao",
 ]

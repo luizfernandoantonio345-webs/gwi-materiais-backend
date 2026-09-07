@@ -11,15 +11,10 @@ TRANSICOES: dict[StatusPedido, dict[StatusPedido, tuple[Papel, ...]]] = {
     },
     StatusPedido.AGUARDANDO_GERENTE: {
         StatusPedido.APROVADO: (Papel.GERENTE,),
-        StatusPedido.AGUARDANDO_DIRETORIA: (Papel.GERENTE,),
         StatusPedido.REJEITADO: (Papel.GERENTE,),
     },
-    StatusPedido.AGUARDANDO_DIRETORIA: {
-        StatusPedido.APROVADO: (Papel.DIRETOR,),
-        StatusPedido.REJEITADO: (Papel.DIRETOR,),
-    },
     StatusPedido.APROVADO: {
-        StatusPedido.AGUARDANDO_COMPRA: (Papel.GERENTE, Papel.DIRETOR),
+        StatusPedido.AGUARDANDO_COMPRA: (Papel.GERENTE,),
     },
     StatusPedido.AGUARDANDO_COMPRA: {
         StatusPedido.COMPRADO: (Papel.ADM_COMPRAS,),
@@ -32,9 +27,7 @@ TRANSICOES: dict[StatusPedido, dict[StatusPedido, tuple[Papel, ...]]] = {
 
 
 def destino_por_alcada(valor: float, aprovador: Usuario) -> StatusPedido:
-    if float(aprovador.limite_alcada) >= float(valor):
-        return StatusPedido.APROVADO
-    return StatusPedido.AGUARDANDO_DIRETORIA
+    return StatusPedido.APROVADO
 
 
 async def transicionar(db: AsyncSession, pedido: Pedido, novo: StatusPedido, usuario: Usuario, observacao: str | None = None) -> Pedido:
@@ -48,7 +41,7 @@ async def transicionar(db: AsyncSession, pedido: Pedido, novo: StatusPedido, usu
     de = pedido.status
     pedido.status = novo
     pedido.version += 1
-    if novo in (StatusPedido.APROVADO, StatusPedido.AGUARDANDO_DIRETORIA):
+    if novo == StatusPedido.APROVADO:
         pedido.aprovador_id = usuario.id
     elif novo in (StatusPedido.COMPRADO, StatusPedido.RECEBIDO):
         pedido.comprador_id = usuario.id

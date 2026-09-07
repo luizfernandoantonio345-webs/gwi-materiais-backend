@@ -22,12 +22,11 @@ python -m pytest -v
 
 Senha para todos: `Gramo@Forte2026!`
 
-| Perfil | E-mail | Alçada |
+| Perfil | E-mail | Aprovação |
 |---|---|---|
 | Almoxarife | almoxarife@gramo.com | — |
 | ADM/Compras | compras@gramo.com | — |
-| Gerente | gerente@gramo.com | R$ 50.000 |
-| Diretor | diretor@gramo.com | R$ 10.000.000 |
+| Gerente | gerente@gramo.com | Aprova todos os pedidos |
 
 ---
 
@@ -39,7 +38,7 @@ Senha para todos: `Gramo@Forte2026!`
 - **Proteção contra brute force:** bloqueio de conta após N tentativas, com persistência garantida do contador mesmo em falha.
 - **Rate limiting** por IP (limite separado para login).
 - **Política de senha forte** (12+ caracteres, maiúscula, minúscula, número, símbolo).
-- **RBAC + alçada por valor (ABAC):** cada perfil só executa o que lhe cabe; aprovação acima da alçada do gerente sobe automaticamente para a diretoria.
+- **RBAC por perfil:** cada perfil só executa o que lhe cabe; o gerente é o aprovador único e aprova todos os pedidos encaminhados.
 - **Security headers** (HSTS, CSP, X-Frame-Options, nosniff, no-store) e header `Server` removido.
 - **Tratamento global de erros** que nunca vaza stack trace, SQL ou caminho de arquivo.
 - **CORS restrito** por origem, método e header. Documentação (`/docs`) desativada em produção.
@@ -58,7 +57,7 @@ Senha para todos: `Gramo@Forte2026!`
 - **Health checks** `/health/live` e `/health/ready`.
 
 ### Cobertura de testes (23 casos)
-Fluxo de negócio completo · autenticação (sem token / inválido / adulterado) · autorização por perfil (bypass → 403) · brute force → lockout · injeção SQL (4 payloads) · não-vazamento de stack trace · security headers · alçada → diretoria · idempotência · reserva de saldo · MFA (fluxo completo com TOTP real) · rotação e revogação de refresh · senha fraca · comodato · integridade do kardex.
+Fluxo de negócio completo · autenticação (sem token / inválido / adulterado) · autorização por perfil (bypass → 403) · brute force → lockout · injeção SQL (4 payloads) · não-vazamento de stack trace · security headers · aprovação do gerente · idempotência · reserva de saldo · MFA (fluxo completo com TOTP real) · rotação e revogação de refresh · senha fraca · comodato · integridade do kardex.
 
 ---
 

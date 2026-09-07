@@ -32,7 +32,7 @@ async def _get(db: AsyncSession, pedido_id: int) -> Pedido:
     return p
 
 
-@router.post("", response_model=PedidoOut, status_code=201, dependencies=[Depends(require_roles(Papel.ALMOXARIFE))])
+@router.post("", response_model=PedidoOut, status_code=201, dependencies=[Depends(require_roles(Papel.ALMOXARIFE, Papel.GERENTE))])
 async def criar_pedido(dados: PedidoCreate, usuario: CurrentUser, db: Annotated[AsyncSession, Depends(get_db)]):
     pedido = Pedido(
         numero=await _numero(db),
@@ -80,8 +80,6 @@ async def listar(
         stmt = stmt.where(Pedido.status == status_filtro)
     elif usuario.papel == Papel.GERENTE:
         stmt = stmt.where(Pedido.status == StatusPedido.AGUARDANDO_GERENTE)
-    elif usuario.papel == Papel.DIRETOR:
-        stmt = stmt.where(Pedido.status == StatusPedido.AGUARDANDO_DIRETORIA)
     elif usuario.papel == Papel.ADM_COMPRAS:
         stmt = stmt.where(Pedido.status.in_([StatusPedido.AGUARDANDO_COMPRA, StatusPedido.COMPRADO]))
     total = int(await db.scalar(select(func.count()).select_from(stmt.subquery())) or 0)
@@ -97,7 +95,7 @@ async def detalhar(pedido_id: int, _: CurrentUser, db: Annotated[AsyncSession, D
 
 @router.post("/{pedido_id}/aprovar", response_model=PedidoOut)
 async def aprovar(pedido_id: int, dados: AprovacaoGerente, usuario: CurrentUser, db: Annotated[AsyncSession, Depends(get_db)]):
-    if usuario.papel not in (Papel.GERENTE, Papel.DIRETOR):
+    if usuario.papel != Papel.GERENTE:
         raise HTTPException(status_code=403, detail="Apenas gestão aprova.")
     pedido = await _get(db, pedido_id)
     mapa = {i.id: i for i in pedido.itens}

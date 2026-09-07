@@ -53,6 +53,14 @@ class UsuarioOut(BaseModel):
     limite_alcada: float
 
 
+class UsuarioUpdate(BaseModel):
+    nome: str | None = None
+    papel: Papel | None = None
+    ativo: bool | None = None
+    senha: str | None = None
+    limite_alcada: float | None = None
+
+
 class MfaSetupOut(BaseModel):
     secret: str
     uri: str

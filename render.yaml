@@ -1,15 +1,25 @@
+databases:
+  - name: gwi-materiais-db
+    databaseName: gwi_materiais
+    user: gwi
+    plan: free
+
 services:
   - type: web
     name: gwi-materiais-api
     runtime: python
+    plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health/live
     envVars:
       - key: ENVIRONMENT
         value: production
       - key: SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
-        value: sqlite+aiosqlite:///./gwi_v2.db
+        fromDatabase:
+          name: gwi-materiais-db
+          property: connectionString
       - key: CORS_ORIGINS
         value: '["https://gwi-frontend.vercel.app"]'

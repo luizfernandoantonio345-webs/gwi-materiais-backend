@@ -100,11 +100,10 @@ async def test_security_headers(client):
     assert "Server" not in r.headers
 
 
-# ---------------------------------------------------- alçada
-async def test_valor_acima_alcada_vai_para_diretoria(client):
+# ---------------------------------------------------- aprovação (nível único: gerente aprova tudo)
+async def test_gerente_aprova_alto_valor_direto(client):
     almox = await hdr(client, "almox@g.com")
     gerente = await hdr(client, "gerente@g.com")
-    diretor = await hdr(client, "diretor@g.com")
     compras = await hdr(client, "compras@g.com")
     fur = next(m for m in (await client.get("/materiais", headers=compras)).json()["items"] if m["codigo"] == "FUR-BOSCH")
     await client.post("/estoque/entrada", headers=compras, json={"material_id": fur["id"], "quantidade": 1000, "custo_unitario": 480})
@@ -114,11 +113,6 @@ async def test_valor_acima_alcada_vai_para_diretoria(client):
         f"/pedidos/{ped['id']}/aprovar", headers=gerente, json={"itens": [{"item_id": ped["itens"][0]["id"], "qtd_aprovada": 500}]}
     )
     assert r.status_code == 200
-    assert r.json()["status"] == "AGUARDANDO_DIRETORIA"
-
-    r = await client.post(
-        f"/pedidos/{ped['id']}/aprovar", headers=diretor, json={"itens": [{"item_id": ped["itens"][0]["id"], "qtd_aprovada": 500}]}
-    )
     assert r.json()["status"] == "AGUARDANDO_COMPRA"
 
 
@@ -181,7 +175,7 @@ async def test_mfa_fluxo(client):
 
 # ---------------------------------------------------- refresh / rotação
 async def test_refresh_rotaciona_e_revoga(client):
-    r = await client.post("/auth/login", data={"username": "diretor@g.com", "password": SENHA})
+    r = await client.post("/auth/login", data={"username": "gerente@g.com", "password": SENHA})
     refresh = r.json()["refresh_token"]
     r1 = await client.post("/auth/refresh", json={"refresh_token": refresh})
     assert r1.status_code == 200
@@ -191,8 +185,44 @@ async def test_refresh_rotaciona_e_revoga(client):
 
 # ---------------------------------------------------- senha fraca
 async def test_senha_fraca_rejeitada(client):
-    diretor = await hdr(client, "diretor@g.com")
+    gerente = await hdr(client, "gerente@g.com")
     r = await client.post(
-        "/auth/usuarios", headers=diretor, json={"nome": "Fraco", "email": "fraco@g.com", "senha": "123456", "papel": "ALMOXARIFE"}
+        "/auth/usuarios", headers=gerente, json={"nome": "Fraco", "email": "fraco@g.com", "senha": "123456", "papel": "ALMOXARIFE"}
     )
     assert r.status_code == 422
+
+
+# ---------------------------------------------------- gestão de usuários
+async def test_gerente_gerencia_usuarios(client):
+    gerente = await hdr(client, "gerente@g.com")
+
+    lista = (await client.get("/auth/usuarios", headers=gerente)).json()
+    assert lista["total"] >= 3
+
+    r = await client.post(
+        "/auth/usuarios",
+        headers=gerente,
+        json={"nome": "Novo Almox", "email": "novo@g.com", "senha": SENHA, "papel": "ALMOXARIFE"},
+    )
+    assert r.status_code == 201, r.text
+    novo_id = r.json()["id"]
+
+    r = await client.patch(f"/auth/usuarios/{novo_id}", headers=gerente, json={"nome": "Renomeado", "ativo": False})
+    assert r.status_code == 200
+    assert r.json()["nome"] == "Renomeado" and r.json()["ativo"] is False
+
+
+async def test_papel_diretor_rejeitado(client):
+    gerente = await hdr(client, "gerente@g.com")
+    r = await client.post(
+        "/auth/usuarios",
+        headers=gerente,
+        json={"nome": "X", "email": "diretor2@g.com", "senha": SENHA, "papel": "DIRETOR"},
+    )
+    assert r.status_code == 422
+
+
+async def test_almoxarife_nao_lista_usuarios(client):
+    almox = await hdr(client, "almox@g.com")
+    r = await client.get("/auth/usuarios", headers=almox)
+    assert r.status_code == 403

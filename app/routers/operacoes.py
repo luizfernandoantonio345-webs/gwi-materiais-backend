@@ -75,6 +75,85 @@ async def devolver(dados: DevolucaoQR, usuario: CurrentUser, db: Annotated[Async
     return {"comodato_id": comodato.id, "status": "DEVOLVIDO"}
 
 
+@router.get("/colaboradores/buscar")
+async def buscar_colaboradores(q: str, _: CurrentUser, db: Annotated[AsyncSession, Depends(get_db)]):
+    from sqlalchemy import or_
+    stmt = select(Colaborador).where(
+        Colaborador.ativo == True,
+        or_(
+            Colaborador.nome.ilike(f"%{q}%"),
+            Colaborador.matricula.ilike(f"%{q}%"),
+        )
+    ).limit(10)
+    res = await db.execute(stmt)
+    return [{"id": c.id, "matricula": c.matricula, "nome": c.nome, "cargo": c.cargo} for c in res.scalars()]
+
+
+@router.get("/comodatos/por-colaborador")
+async def comodatos_por_colaborador(_: CurrentUser, db: Annotated[AsyncSession, Depends(get_db)]):
+    stmt = select(Comodato).where(Comodato.status == StatusComodato.ABERTO).order_by(Comodato.retirado_em.desc())
+    res = await db.execute(stmt)
+    comodatos = res.scalars().all()
+    grupos: dict[int, dict] = {}
+    for c in comodatos:
+        col = await db.get(Colaborador, c.colaborador_id)
+        mat = await db.get(Material, c.material_id)
+        if c.colaborador_id not in grupos:
+            grupos[c.colaborador_id] = {
+                "colaborador_id": c.colaborador_id,
+                "colaborador_nome": col.nome if col else "—",
+                "colaborador_matricula": col.matricula if col else "—",
+                "cargo": col.cargo if col else "",
+                "itens": [],
+            }
+        grupos[c.colaborador_id]["itens"].append({
+            "comodato_id": c.id,
+            "material_id": c.material_id,
+            "material_nome": mat.nome if mat else "—",
+            "material_codigo": mat.codigo if mat else "—",
+            "quantidade": float(c.quantidade),
+            "retirado_em": c.retirado_em.isoformat(),
+        })
+    return list(grupos.values())
+
+
+@router.get("/estoque/movimentacoes")
+async def listar_movimentacoes(
+    _: CurrentUser, db: Annotated[AsyncSession, Depends(get_db)],
+    material_id: int | None = None,
+    colaborador_id: int | None = None,
+    almoxarife_id: int | None = None,
+    limit: int = 50,
+):
+    from ..models.estoque import MovimentacaoEstoque
+    stmt = select(MovimentacaoEstoque).order_by(MovimentacaoEstoque.criado_em.desc()).limit(limit)
+    if material_id:
+        stmt = stmt.where(MovimentacaoEstoque.material_id == material_id)
+    if colaborador_id:
+        stmt = stmt.where(MovimentacaoEstoque.colaborador_id == colaborador_id)
+    if almoxarife_id:
+        stmt = stmt.where(MovimentacaoEstoque.usuario_id == almoxarife_id)
+    res = await db.execute(stmt)
+    rows = res.scalars().all()
+    out = []
+    for m in rows:
+        mat = await db.get(Material, m.material_id)
+        col = await db.get(Colaborador, m.colaborador_id) if m.colaborador_id else None
+        out.append({
+            "id": m.id,
+            "tipo": m.tipo,
+            "material_nome": mat.nome if mat else "—",
+            "material_codigo": mat.codigo if mat else "—",
+            "colaborador_nome": col.nome if col else None,
+            "quantidade": float(m.quantidade),
+            "saldo_apos": float(m.saldo_apos),
+            "almoxarife_id": m.usuario_id,
+            "observacao": m.observacao,
+            "criado_em": m.criado_em.isoformat(),
+        })
+    return out
+
+
 @router.get("/comodatos")
 async def listar_comodatos(_: CurrentUser, db: Annotated[AsyncSession, Depends(get_db)], apenas_abertos: bool = True):
     stmt = select(Comodato).order_by(Comodato.retirado_em.desc())
@@ -102,7 +181,7 @@ async def entrada(dados: EntradaEstoque, usuario: CurrentUser, db: Annotated[Asy
     return {"material": material.nome, "saldo_atual": float(material.saldo_estoque), "custo_medio": float(material.custo_medio)}
 
 
-@router.get("/estoque/integridade/{material_id}", dependencies=[Depends(require_roles(Papel.GERENTE, Papel.DIRETOR, Papel.ADM_COMPRAS))])
+@router.get("/estoque/integridade/{material_id}", dependencies=[Depends(require_roles(Papel.GERENTE, Papel.ADM_COMPRAS))])
 async def integridade(material_id: int, db: Annotated[AsyncSession, Depends(get_db)]):
     ok = await verificar_integridade_kardex(db, material_id)
     return {"material_id": material_id, "kardex_integro": ok}
