@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, Integer, Numeric, String
+from sqlalchemy import Boolean, DateTime, Enum, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..database import Base
@@ -20,6 +20,7 @@ class Usuario(Base, TenantMixin, AuditMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     nome: Mapped[str] = mapped_column(String(120))
     email: Mapped[str] = mapped_column(String(160), unique=True, index=True)
+    foto: Mapped[str | None] = mapped_column(Text, nullable=True)
     senha_hash: Mapped[str] = mapped_column(String(200))
     papel: Mapped[Papel] = mapped_column(Enum(Papel), index=True)
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)

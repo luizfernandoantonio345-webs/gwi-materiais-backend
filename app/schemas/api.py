@@ -47,6 +47,7 @@ class UsuarioOut(BaseModel):
     id: int
     nome: str
     email: EmailStr
+    foto: str | None = None
     papel: Papel
     ativo: bool
     mfa_ativo: bool
@@ -59,6 +60,12 @@ class UsuarioUpdate(BaseModel):
     ativo: bool | None = None
     senha: str | None = None
     limite_alcada: float | None = None
+
+
+class MeUpdate(BaseModel):
+    # Atualização do próprio perfil pelo usuário logado.
+    nome: str | None = Field(default=None, min_length=1, max_length=80)
+    foto: str | None = Field(default=None, max_length=400_000)  # data URL (~300 KB)
 
 
 class MfaSetupOut(BaseModel):

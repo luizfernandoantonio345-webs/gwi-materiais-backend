@@ -11,7 +11,7 @@ from ..config import get_settings
 from ..database import get_db
 from ..models.base import agora, garantir_aware
 from ..models.usuario import Papel, Usuario
-from ..schemas.api import LoginResp, MfaSetupOut, MfaVerify, Pagina, RefreshReq, UsuarioCreate, UsuarioOut, UsuarioUpdate
+from ..schemas.api import LoginResp, MeUpdate, MfaSetupOut, MfaVerify, Pagina, RefreshReq, UsuarioCreate, UsuarioOut, UsuarioUpdate
 from ..security import mfa as mfa_svc
 from ..security.deps import CurrentUser, require_roles
 from ..security.passwords import conferir_senha, hash_senha, validar_forca
@@ -101,6 +101,23 @@ async def logout(dados: RefreshReq, usuario: CurrentUser, db: Annotated[AsyncSes
 
 @router.get("/me", response_model=UsuarioOut)
 async def me(usuario: CurrentUser):
+    return usuario
+
+
+@router.patch("/me", response_model=UsuarioOut)
+async def editar_meu_perfil(dados: MeUpdate, usuario: CurrentUser, db: Annotated[AsyncSession, Depends(get_db)]):
+    if dados.nome is not None:
+        nome = dados.nome.strip()
+        if not nome:
+            raise HTTPException(status_code=422, detail="Nome não pode ser vazio.")
+        usuario.nome = nome
+    if dados.foto is not None:
+        # string vazia remove a foto
+        usuario.foto = dados.foto or None
+    db.add(usuario)
+    await db.flush()
+    await audit_service.registrar(db, "perfil_editado", "usuario", usuario.id, str(usuario.id))
+    await db.refresh(usuario)
     return usuario
 
 
