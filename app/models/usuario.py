@@ -29,6 +29,7 @@ class Usuario(Base, TenantMixin, AuditMixin):
 
     mfa_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
     mfa_ativo: Mapped[bool] = mapped_column(Boolean, default=False)
+    mfa_backup_codes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     tentativas_login: Mapped[int] = mapped_column(Integer, default=0)
     bloqueado_ate: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -73,6 +73,38 @@ class MfaSetupOut(BaseModel):
     uri: str
 
 
+class MfaAtivarOut(BaseModel):
+    ativo: bool = True
+    backup_codes: list[str]
+
+
+class MfaDisable(BaseModel):
+    senha: str
+
+
+class LinhaImportacao(BaseModel):
+    linha: int
+    acao: str  # "criar" | "atualizar" | "erro"
+    dados: dict
+    erro: str | None = None
+
+
+class PreviewImportacao(BaseModel):
+    total: int
+    criar: int
+    atualizar: int
+    erros: int
+    linhas: list[LinhaImportacao]
+
+
+class ResultadoImportacao(BaseModel):
+    criados: int
+    atualizados: int
+    rejeitados: int
+    linhas: list[LinhaImportacao]
+    relatorio_xlsx_base64: str
+
+
 class ClasseCreate(BaseModel):
     codigo: str
     nome: str

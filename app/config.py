@@ -45,6 +45,8 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["https://gwi.gramo.com"]
 
+    mfa_required_roles: list[str] = []
+
 
 @lru_cache
 def get_settings() -> Settings:

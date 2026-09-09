@@ -160,7 +160,8 @@ async def test_mfa_fluxo(client):
     secret = setup["secret"]
     codigo = pyotp.TOTP(secret).now()
     r = await client.post("/auth/mfa/ativar", headers=gerente, json={"desafio_id": "x", "codigo": codigo})
-    assert r.status_code == 204
+    assert r.status_code == 200
+    assert len(r.json()["backup_codes"]) == 8
 
     r = await client.post("/auth/login", data={"username": "gerente@g.com", "password": SENHA})
     assert r.json()["mfa_requerido"] is True

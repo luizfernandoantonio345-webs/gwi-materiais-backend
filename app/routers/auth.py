@@ -1,3 +1,4 @@
+import json
 import uuid
 from datetime import timedelta
 from typing import Annotated
@@ -11,7 +12,19 @@ from ..config import get_settings
 from ..database import get_db
 from ..models.base import agora, garantir_aware
 from ..models.usuario import Papel, Usuario
-from ..schemas.api import LoginResp, MeUpdate, MfaSetupOut, MfaVerify, Pagina, RefreshReq, UsuarioCreate, UsuarioOut, UsuarioUpdate
+from ..schemas.api import (
+    LoginResp,
+    MeUpdate,
+    MfaAtivarOut,
+    MfaDisable,
+    MfaSetupOut,
+    MfaVerify,
+    Pagina,
+    RefreshReq,
+    UsuarioCreate,
+    UsuarioOut,
+    UsuarioUpdate,
+)
 from ..security import mfa as mfa_svc
 from ..security.deps import CurrentUser, require_roles
 from ..security.passwords import conferir_senha, hash_senha, validar_forca
@@ -65,13 +78,33 @@ async def login(request: Request, form: Annotated[OAuth2PasswordRequestForm, Dep
     return LoginResp(access_token=access, refresh_token=refresh)
 
 
+async def _consumir_backup_code(usuario: Usuario, codigo: str, db: AsyncSession) -> bool:
+    if not usuario.mfa_backup_codes:
+        return False
+    try:
+        hashes = json.loads(usuario.mfa_backup_codes)
+    except (ValueError, TypeError):
+        return False
+    alvo = (codigo or "").strip().upper()
+    for h in hashes:
+        if conferir_senha(alvo, h):
+            hashes.remove(h)
+            usuario.mfa_backup_codes = json.dumps(hashes)
+            db.add(usuario)
+            return True
+    return False
+
+
 @router.post("/mfa/verify", response_model=LoginResp)
 async def mfa_verify(dados: MfaVerify, db: Annotated[AsyncSession, Depends(get_db)]):
     uid = _desafios.get(dados.desafio_id)
     if not uid:
         raise HTTPException(status_code=400, detail="Desafio inválido ou expirado.")
     usuario = await db.get(Usuario, uid)
-    if not usuario or not mfa_svc.verificar_codigo(usuario.mfa_secret, dados.codigo):
+    if not usuario:
+        raise HTTPException(status_code=401, detail="Código MFA inválido.")
+    ok = mfa_svc.verificar_codigo(usuario.mfa_secret, dados.codigo) or await _consumir_backup_code(usuario, dados.codigo, db)
+    if not ok:
         raise HTTPException(status_code=401, detail="Código MFA inválido.")
     _desafios.pop(dados.desafio_id, None)
     access = criar_access_token(usuario, mfa_ok=True)
@@ -129,12 +162,27 @@ async def mfa_setup(usuario: CurrentUser, db: Annotated[AsyncSession, Depends(ge
     return MfaSetupOut(secret=secret, uri=mfa_svc.uri_provisionamento(secret, usuario.email))
 
 
-@router.post("/mfa/ativar", status_code=204)
+@router.post("/mfa/ativar", response_model=MfaAtivarOut)
 async def mfa_ativar(dados: MfaVerify, usuario: CurrentUser, db: Annotated[AsyncSession, Depends(get_db)]):
     if not mfa_svc.verificar_codigo(usuario.mfa_secret, dados.codigo):
         raise HTTPException(status_code=401, detail="Código MFA inválido.")
+    codes = mfa_svc.gerar_backup_codes()
+    usuario.mfa_backup_codes = json.dumps([hash_senha(c) for c in codes])
     usuario.mfa_ativo = True
     db.add(usuario)
+    await audit_service.registrar(db, "mfa_ativado", "usuario", usuario.id)
+    return MfaAtivarOut(ativo=True, backup_codes=codes)
+
+
+@router.post("/mfa/desativar", status_code=204)
+async def mfa_desativar(dados: MfaDisable, usuario: CurrentUser, db: Annotated[AsyncSession, Depends(get_db)]):
+    if not conferir_senha(dados.senha, usuario.senha_hash):
+        raise HTTPException(status_code=401, detail="Senha inválida.")
+    usuario.mfa_ativo = False
+    usuario.mfa_secret = None
+    usuario.mfa_backup_codes = None
+    db.add(usuario)
+    await audit_service.registrar(db, "mfa_desativado", "usuario", usuario.id)
 
 
 @router.get("/usuarios", response_model=Pagina[UsuarioOut], dependencies=[Depends(require_roles(Papel.GERENTE))])
