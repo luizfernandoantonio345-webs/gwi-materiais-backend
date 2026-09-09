@@ -71,6 +71,16 @@ async def test_confirmar_bloqueia_com_erro_sem_ignorar(client):
     assert r.status_code == 422
 
 
+async def test_confirmar_colaboradores_ignorando_erros(client):
+    h = await hdr(client, "compras@g.com")
+    csv = "nome;matricula\nValido Um;31001\n;31002\n"
+    r = await client.post("/colaboradores/importar/confirmar", headers=h, files=_csv(csv), data={"ignorar_erros": "true"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["criados"] == 1
+    assert body["rejeitados"] == 1
+
+
 async def test_confirmar_colaboradores_atualiza_existente(client):
     h = await hdr(client, "compras@g.com")
     csv = "nome;matricula\nJoao Atualizado;00123\n"

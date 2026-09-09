@@ -125,7 +125,7 @@ async def listar_colaboradores(
     limit: Limit = 50,
     offset: Offset = 0,
 ):
-    base = select(Colaborador)
+    base = select(Colaborador).where(Colaborador.ativo.is_(True))
     if busca:
         termo = f"%{busca.strip()}%"
         base = base.where(or_(Colaborador.nome.ilike(termo), Colaborador.matricula.ilike(termo)))
@@ -133,6 +133,26 @@ async def listar_colaboradores(
     total = await _contar(db, base)
     res = await db.execute(base.limit(limit).offset(offset))
     return Pagina(items=list(res.scalars().all()), total=total, limit=limit, offset=offset)
+
+
+@router.delete("/colaboradores/{colaborador_id}", status_code=204, dependencies=[Depends(adm_ou_almox)])
+async def remover_colaborador(colaborador_id: int, usuario: CurrentUser, db: Annotated[AsyncSession, Depends(get_db)]):
+    alvo = await db.get(Colaborador, colaborador_id)
+    if not alvo or not alvo.ativo:
+        raise HTTPException(status_code=404, detail="Colaborador não encontrado.")
+    alvo.ativo = False
+    db.add(alvo)
+    await audit_service.registrar(db, "colaborador_removido", "colaborador", usuario.id, str(colaborador_id))
+
+
+@router.delete("/materiais/{material_id}", status_code=204, dependencies=[Depends(somente_adm)])
+async def remover_material(material_id: int, usuario: CurrentUser, db: Annotated[AsyncSession, Depends(get_db)]):
+    alvo = await db.get(Material, material_id)
+    if not alvo or not alvo.ativo:
+        raise HTTPException(status_code=404, detail="Material não encontrado.")
+    alvo.ativo = False
+    db.add(alvo)
+    await audit_service.registrar(db, "material_removido", "material", usuario.id, str(material_id))
 
 
 # ─────────────────────────────────────────────────────────────
