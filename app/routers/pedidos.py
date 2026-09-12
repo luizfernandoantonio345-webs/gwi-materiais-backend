@@ -13,6 +13,7 @@ from ..models.pedido import HistoricoPedido, ItemPedido, Pedido, StatusPedido
 from ..models.usuario import Papel
 from ..schemas.api import AprovacaoGerente, EfetivarCompra, Pagina, PedidoCreate, PedidoOut
 from ..security.deps import CurrentUser, require_roles
+from ..realtime import publicar_evento
 from ..services import audit_service
 from ..services.estoque_service import movimentar
 from ..services.workflow import destino_por_alcada, transicionar
@@ -64,6 +65,7 @@ async def criar_pedido(dados: PedidoCreate, usuario: CurrentUser, db: Annotated[
     await audit_service.registrar(db, "pedido_criado", "pedido", usuario.id, str(pedido.id))
     await db.flush()
     await db.refresh(pedido)
+    await publicar_evento(["GERENTE"], "pedido_novo", "Novo pedido para aprovação.")
     return pedido
 
 
@@ -121,6 +123,7 @@ async def aprovar(pedido_id: int, dados: AprovacaoGerente, usuario: CurrentUser,
         # Aprovação é autorização de gasto (gestão) — não consome/reserva estoque.
         if destino == StatusPedido.APROVADO:
             await transicionar(db, pedido, StatusPedido.AGUARDANDO_COMPRA, usuario, "Encaminhado à compra")
+            await publicar_evento(["ADM_COMPRAS"], "pedido_compra", "Novo pedido aprovado para compra.")
     await audit_service.registrar(db, "pedido_aprovado", "pedido", usuario.id, str(pedido.id), f"valor={valor}")
     await db.flush()
     await db.refresh(pedido)

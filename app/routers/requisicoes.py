@@ -10,6 +10,7 @@ from ..database import get_db
 from ..models.catalogo import Material
 from ..models.requisicao import RequisicaoEstoque, StatusRequisicao
 from ..models.usuario import Papel
+from ..realtime import publicar_evento
 from ..security.deps import CurrentUser, require_roles
 from ..services.estoque_service import movimentar
 from ..models.estoque import TipoMovimento
@@ -50,6 +51,7 @@ async def criar(dados: CriarRequisicao, usuario: CurrentUser, db: Annotated[Asyn
     db.add(req)
     await db.commit()
     await db.refresh(req)
+    await publicar_evento(["ADM_COMPRAS"], "requisicao_nova", "Nova solicitação do almoxarife.")
     return {"id": req.id, "status": req.status, "material": material.nome}
 
 
@@ -91,6 +93,7 @@ async def marcar_comprado(req_id: int, dados: AtualizarStatus, usuario: CurrentU
         req.observacao = (req.observacao or "") + f" | Compras: {dados.observacao}"
     db.add(req)
     await db.commit()
+    await publicar_evento(["ALMOXARIFE"], "requisicao_status", "Sua solicitação foi marcada como comprada.")
     return {"id": req_id, "status": req.status}
 
 
@@ -111,6 +114,7 @@ async def marcar_recebido(req_id: int, dados: AtualizarStatus, usuario: CurrentU
     req.compras_id = usuario.id
     db.add(req)
     await db.commit()
+    await publicar_evento(["ALMOXARIFE"], "requisicao_status", "Sua solicitação foi recebida — estoque atualizado.")
     return {"id": req_id, "status": req.status, "saldo_atual": float(material.saldo_estoque)}
 
 

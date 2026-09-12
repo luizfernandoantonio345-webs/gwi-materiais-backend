@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
@@ -54,6 +54,33 @@ app.include_router(catalogo.router)
 app.include_router(pedidos.router)
 app.include_router(operacoes.router)
 app.include_router(requisicoes.router)
+
+
+@app.websocket("/ws")
+async def ws_eventos(websocket: WebSocket, token: str = Query(default="")):
+    from .security.tokens import decodificar
+
+    try:
+        payload = decodificar(token)
+        if payload.get("type") != "access" or not payload.get("mfa", False):
+            await websocket.close(code=1008)
+            return
+        papel = payload.get("papel") or ""
+    except Exception:
+        await websocket.close(code=1008)
+        return
+
+    from .realtime import manager
+
+    await websocket.accept()
+    await manager.conectar(websocket, papel)
+    try:
+        while True:
+            await websocket.receive_text()  # mantém aberto; conteúdo (ping) é ignorado
+    except WebSocketDisconnect:
+        await manager.desconectar(websocket)
+    except Exception:
+        await manager.desconectar(websocket)
 
 
 @app.get("/health/live", tags=["Infra"])
