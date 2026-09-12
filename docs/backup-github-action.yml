@@ -1,0 +1,45 @@
+# Backup diário do banco (off-site, grátis) via GitHub Actions.
+#
+# COMO USAR (o token de push atual não tem permissão de workflow, então adicione pela web):
+# 1. No GitHub, no repo gwi-materiais-backend: Settings > Secrets and variables > Actions
+#    > New repository secret:
+#      Name:  DATABASE_URL
+#      Value: (a Internal/External Database URL do Postgres no Render — pegue no painel do Render)
+# 2. Add file > Create new file, caminho: .github/workflows/backup.yml
+# 3. Cole exatamente o conteúdo abaixo (a partir de "name:") e commit.
+#
+# O backup roda todo dia 06:00 UTC (03:00 BRT) e fica guardado como artifact por 30 dias.
+# Também dá pra rodar sob demanda em Actions > Backup do banco > Run workflow.
+
+name: Backup do banco
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Instalar postgresql-client 16
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-16
+
+      - name: Gerar dump
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          STAMP=$(date +%Y%m%d_%H%M%S)
+          URL="${DATABASE_URL/postgresql+asyncpg:\/\//postgresql://}"
+          URL="${URL/postgres:\/\//postgresql://}"
+          pg_dump "$URL" --no-owner --no-privileges | gzip -9 > "gwi_materiais_${STAMP}.sql.gz"
+
+      - name: Enviar backup como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-${{ github.run_id }}
+          path: "*.sql.gz"
+          retention-days: 30
