@@ -57,7 +57,7 @@ Senha para todos: `Gramo@Forte2026!`
 - **Health checks** `/health/live` e `/health/ready`.
 
 ### Cobertura de testes (23 casos)
-Fluxo de negócio completo · autenticação (sem token / inválido / adulterado) · autorização por perfil (bypass → 403) · brute force → lockout · injeção SQL (4 payloads) · não-vazamento de stack trace · security headers · aprovação do gerente · idempotência · reserva de saldo · MFA (fluxo completo com TOTP real) · rotação e revogação de refresh · senha fraca · comodato · integridade do kardex.
+Fluxo de negócio completo · autenticação (sem token / inválido / adulterado) · autorização por perfil (bypass → 403) · brute force → lockout · injeção SQL (4 payloads) · não-vazamento de stack trace · security headers · aprovação do gerente · idempotência · autorização de compra · MFA (fluxo completo com TOTP real) · rotação e revogação de refresh · senha fraca · comodato · integridade do kardex.
 
 ---
 
@@ -72,7 +72,3 @@ Estes itens do roadmap **dependem de infraestrutura ou credenciais externas** qu
 - **Pentest e testes de carga (k6):** exigem ambiente dedicado e ferramentas externas; a suíte automatizada já cobre a superfície de aplicação.
 
 A camada de aplicação — a parte que **é** código e **pode** ser testada — está pronta e verde. As próximas fases são de integração e infraestrutura.
-
-## Nota sobre comentários no código
-
-O código não tem comentários, conforme solicitado. Vale registrar, para clareza técnica: comentário em código de **backend** não é vetor de ataque — o fonte do servidor não é servido ao cliente. Os vetores reais de vazamento de informação **foram tratados**: nenhum stack trace, SQL ou caminho de arquivo aparece em resposta de erro; o header `Server` é removido; e a documentação da API é desativada em produção.
