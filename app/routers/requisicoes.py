@@ -51,7 +51,7 @@ async def criar(dados: CriarRequisicao, usuario: CurrentUser, db: Annotated[Asyn
     db.add(req)
     await db.commit()
     await db.refresh(req)
-    await publicar_evento(["ADM_COMPRAS"], "requisicao_nova", "Nova solicitação do almoxarife.")
+    await publicar_evento(["ADM_COMPRAS", "GERENTE"], "requisicao_nova", "Nova solicitação do almoxarife.")
     return {"id": req.id, "status": req.status, "material": material.nome}
 
 
@@ -93,7 +93,7 @@ async def marcar_comprado(req_id: int, dados: AtualizarStatus, usuario: CurrentU
         req.observacao = (req.observacao or "") + f" | Compras: {dados.observacao}"
     db.add(req)
     await db.commit()
-    await publicar_evento(["ALMOXARIFE"], "requisicao_status", "Sua solicitação foi marcada como comprada.")
+    await publicar_evento(["ALMOXARIFE", "GERENTE"], "requisicao_status", "Solicitação marcada como comprada.")
     return {"id": req_id, "status": req.status}
 
 
@@ -114,7 +114,7 @@ async def marcar_recebido(req_id: int, dados: AtualizarStatus, usuario: CurrentU
     req.compras_id = usuario.id
     db.add(req)
     await db.commit()
-    await publicar_evento(["ALMOXARIFE"], "requisicao_status", "Sua solicitação foi recebida — estoque atualizado.")
+    await publicar_evento(["ALMOXARIFE", "GERENTE"], "requisicao_status", "Solicitação recebida — estoque atualizado.")
     return {"id": req_id, "status": req.status, "saldo_atual": float(material.saldo_estoque)}
 
 
@@ -128,5 +128,5 @@ async def cancelar(req_id: int, _: CurrentUser, db: Annotated[AsyncSession, Depe
     req.status = StatusRequisicao.CANCELADO
     db.add(req)
     await db.commit()
-    await publicar_evento(["ADM_COMPRAS"], "requisicao_status", "Uma solicitação foi cancelada pelo almoxarife.")
+    await publicar_evento(["ADM_COMPRAS", "GERENTE"], "requisicao_status", "Uma solicitação foi cancelada pelo almoxarife.")
     return {"id": req_id, "status": req.status}
