@@ -14,7 +14,7 @@ from ..models.usuario import Papel
 from ..schemas.api import AprovacaoGerente, EfetivarCompra, Pagina, PedidoCreate, PedidoOut
 from ..security.deps import CurrentUser, require_roles
 from ..services import audit_service
-from ..services.estoque_service import liberar_reserva, movimentar, reservar
+from ..services.estoque_service import movimentar
 from ..services.workflow import destino_por_alcada, transicionar
 
 router = APIRouter(prefix="/pedidos", tags=["Pedidos"])
@@ -118,11 +118,8 @@ async def aprovar(pedido_id: int, dados: AprovacaoGerente, usuario: CurrentUser,
     else:
         destino = destino_por_alcada(float(valor), usuario) if pedido.status == StatusPedido.AGUARDANDO_GERENTE else StatusPedido.APROVADO
         await transicionar(db, pedido, destino, usuario, dados.observacao)
+        # Aprovação é autorização de gasto (gestão) — não consome/reserva estoque.
         if destino == StatusPedido.APROVADO:
-            for item in pedido.itens:
-                if float(item.qtd_aprovada) > 0:
-                    material = await db.get(Material, item.material_id)
-                    await reservar(db, material, float(item.qtd_aprovada))
             await transicionar(db, pedido, StatusPedido.AGUARDANDO_COMPRA, usuario, "Encaminhado à compra")
     await audit_service.registrar(db, "pedido_aprovado", "pedido", usuario.id, str(pedido.id), f"valor={valor}")
     await db.flush()
@@ -153,8 +150,6 @@ async def receber(pedido_id: int, usuario: CurrentUser, db: Annotated[AsyncSessi
     for item in pedido.itens:
         if item.qtd_comprada and float(item.qtd_comprada) > 0:
             material = await db.get(Material, item.material_id)
-            if item.qtd_aprovada:
-                await liberar_reserva(db, material, float(item.qtd_aprovada))
             await movimentar(
                 db,
                 material,

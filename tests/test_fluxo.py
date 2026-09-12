@@ -6,7 +6,7 @@ async def _material(client, h, codigo):
     return next(m for m in r.json()["items"] if m["codigo"] == codigo)
 
 
-async def test_fluxo_completo_com_alcada_e_reserva(client):
+async def test_fluxo_completo_aprovacao_e_compra(client):
     almox = await hdr(client, "almox@g.com")
     gerente = await hdr(client, "gerente@g.com")
     compras = await hdr(client, "compras@g.com")
@@ -30,9 +30,10 @@ async def test_fluxo_completo_com_alcada_e_reserva(client):
     assert r.status_code == 200, r.text
     assert r.json()["status"] == "AGUARDANDO_COMPRA"
 
+    # Aprovação não reserva estoque (é autorização de gasto, não consumo).
     disco = await _material(client, almox, "DISCO-115")
-    assert disco["saldo_reservado"] == 200
-    assert disco["saldo_disponivel"] == 800
+    assert disco["saldo_reservado"] == 0
+    assert disco["saldo_disponivel"] == 1000
 
     r = await client.post(
         f"/pedidos/{pedido['id']}/comprar",

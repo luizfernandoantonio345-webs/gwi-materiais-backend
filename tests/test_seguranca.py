@@ -130,13 +130,14 @@ async def test_idempotencia_nao_duplica(client):
     assert total == 1
 
 
-# ---------------------------------------------------- reserva de saldo
-async def test_reserva_impede_estouro_saldo(client):
+# -------------------------------------- aprovação não é barrada por estoque
+async def test_aprovacao_nao_barra_por_estoque(client):
     almox = await hdr(client, "almox@g.com")
     gerente = await hdr(client, "gerente@g.com")
     compras = await hdr(client, "compras@g.com")
     disco = next(m for m in (await client.get("/materiais", headers=compras)).json()["items"] if m["codigo"] == "DISCO-115")
-    await client.post("/estoque/entrada", headers=compras, json={"material_id": disco["id"], "quantidade": 100, "custo_unitario": 5})
+    # estoque baixo de propósito — não pode impedir a autorização de compra
+    await client.post("/estoque/entrada", headers=compras, json={"material_id": disco["id"], "quantidade": 10, "custo_unitario": 5})
 
     p1 = (await client.post("/pedidos", headers=almox, json={"itens": [{"material_id": disco["id"], "qtd_solicitada": 80}]})).json()
     p2 = (await client.post("/pedidos", headers=almox, json={"itens": [{"material_id": disco["id"], "qtd_solicitada": 80}]})).json()
@@ -144,11 +145,12 @@ async def test_reserva_impede_estouro_saldo(client):
     r1 = await client.post(
         f"/pedidos/{p1['id']}/aprovar", headers=gerente, json={"itens": [{"item_id": p1["itens"][0]["id"], "qtd_aprovada": 80}]}
     )
-    assert r1.json()["status"] == "AGUARDANDO_COMPRA"
+    assert r1.status_code == 200 and r1.json()["status"] == "AGUARDANDO_COMPRA"
+    # segunda aprovação também passa, mesmo além do estoque atual
     r2 = await client.post(
         f"/pedidos/{p2['id']}/aprovar", headers=gerente, json={"itens": [{"item_id": p2["itens"][0]["id"], "qtd_aprovada": 80}]}
     )
-    assert r2.status_code == 409
+    assert r2.status_code == 200 and r2.json()["status"] == "AGUARDANDO_COMPRA"
 
 
 # ---------------------------------------------------- MFA

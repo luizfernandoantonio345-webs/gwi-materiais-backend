@@ -76,22 +76,6 @@ async def movimentar(
     return mov
 
 
-async def reservar(db: AsyncSession, material: Material, quantidade: float) -> None:
-    disponivel = Decimal(str(material.saldo_estoque)) - Decimal(str(material.saldo_reservado))
-    if Decimal(str(quantidade)) > disponivel:
-        raise HTTPException(status_code=409, detail=f"Sem saldo disponível para reservar '{material.nome}'.")
-    material.saldo_reservado = float(Decimal(str(material.saldo_reservado)) + Decimal(str(quantidade)))
-    material.version += 1
-    db.add(material)
-
-
-async def liberar_reserva(db: AsyncSession, material: Material, quantidade: float) -> None:
-    novo = Decimal(str(material.saldo_reservado)) - Decimal(str(quantidade))
-    material.saldo_reservado = float(max(novo, Decimal(0)))
-    material.version += 1
-    db.add(material)
-
-
 async def verificar_integridade_kardex(db: AsyncSession, material_id: int) -> bool:
     res = await db.execute(
         select(MovimentacaoEstoque).where(MovimentacaoEstoque.material_id == material_id).order_by(MovimentacaoEstoque.id.asc())
