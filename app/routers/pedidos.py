@@ -117,6 +117,7 @@ async def aprovar(pedido_id: int, dados: AprovacaoGerente, usuario: CurrentUser,
 
     if all(float(i.qtd_aprovada) == 0 for i in pedido.itens):
         await transicionar(db, pedido, StatusPedido.REJEITADO, usuario, dados.observacao or "Itens zerados")
+        await publicar_evento(["ALMOXARIFE"], "pedido_status", f"Pedido {pedido.numero} foi rejeitado.")
     else:
         destino = destino_por_alcada(float(valor), usuario) if pedido.status == StatusPedido.AGUARDANDO_GERENTE else StatusPedido.APROVADO
         await transicionar(db, pedido, destino, usuario, dados.observacao)
@@ -144,6 +145,7 @@ async def comprar(pedido_id: int, dados: EfetivarCompra, usuario: CurrentUser, d
     await audit_service.registrar(db, "pedido_comprado", "pedido", usuario.id, str(pedido.id))
     await db.flush()
     await db.refresh(pedido)
+    await publicar_evento(["ALMOXARIFE", "GERENTE"], "pedido_status", f"Pedido {pedido.numero} foi comprado.")
     return pedido
 
 
@@ -166,4 +168,5 @@ async def receber(pedido_id: int, usuario: CurrentUser, db: Annotated[AsyncSessi
     await audit_service.registrar(db, "pedido_recebido", "pedido", usuario.id, str(pedido.id))
     await db.flush()
     await db.refresh(pedido)
+    await publicar_evento(["ALMOXARIFE", "GERENTE"], "pedido_status", f"Pedido {pedido.numero} recebido — estoque atualizado.")
     return pedido

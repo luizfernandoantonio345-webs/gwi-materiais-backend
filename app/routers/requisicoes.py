@@ -128,4 +128,5 @@ async def cancelar(req_id: int, _: CurrentUser, db: Annotated[AsyncSession, Depe
     req.status = StatusRequisicao.CANCELADO
     db.add(req)
     await db.commit()
+    await publicar_evento(["ADM_COMPRAS"], "requisicao_status", "Uma solicitação foi cancelada pelo almoxarife.")
     return {"id": req_id, "status": req.status}
