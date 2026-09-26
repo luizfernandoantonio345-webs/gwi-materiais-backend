@@ -1,74 +1,118 @@
-# GWI Materiais — Backend v2 (Enterprise Hardened)
+<div align="center">
 
-Evolução enterprise do módulo de Gestão de Materiais, com foco em **segurança, integridade de dados e testabilidade**. Toda a camada abaixo está **implementada e testada** (23 testes, incluindo testes contra ataque).
+# GWI Materiais — API
 
-## Como rodar
+**Gestão de materiais e almoxarifado para obras industriais**
+
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL_16-4169E1?logo=postgresql&logoColor=white)
+![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy_2_async-D71F00?logo=sqlalchemy&logoColor=white)
+![Tests](https://img.shields.io/badge/testes-62-22D3A6)
+![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
+
+[**Demo**](https://gwi-frontend.vercel.app) · [Frontend](https://github.com/luizfernandoantonio345-webs/gwi-frontend) · [Segurança](SECURITY.md)
+
+</div>
+
+---
+
+Backend do módulo de materiais da plataforma GWI, desenvolvido para a **GRAMO Engenharia** para substituir
+o controle manual do almoxarifado de obra. Cobre o ciclo completo: cadastro, requisição, aprovação por alçada,
+compra, entrada em estoque, baixa por QR Code e comodato de ferramentas — com rastreabilidade de cada movimentação.
+
+## Destaques de engenharia
+
+| | |
+|---|---|
+| **Kardex à prova de adulteração** | Movimentações append-only encadeadas por hash SHA-256; endpoint de verificação detecta qualquer alteração retroativa |
+| **Estoque sem condição de corrida** | Reserva de saldo na aprovação, locking otimista (`version`) e `CHECK` no banco impedem que dois pedidos consumam o mesmo item |
+| **Dinheiro em `Decimal`** | Custo médio ponderado sem erro de ponto flutuante |
+| **Autenticação robusta** | JWT de 15 min + refresh token com rotação e **detecção de reuso** (revoga a cadeia inteira), MFA TOTP com códigos de backup |
+| **Defesa em profundidade** | RBAC + alçada por valor, bloqueio por força bruta, rate limit por IP, security headers, erros que nunca vazam stack trace |
+| **Tempo real** | WebSocket autenticado para notificar aprovações e compras por perfil |
+| **Observabilidade** | Logs JSON estruturados com `request_id` propagado; health checks `live` / `ready` |
+
+## Arquitetura
+
+```
+app/
+├── routers/      # auth, catálogo, pedidos, operações, requisições (45 endpoints)
+├── services/     # regras de negócio: estoque, workflow de aprovação, importação .xlsx, auditoria
+├── models/       # SQLAlchemy 2.0 async — materiais, estoque/kardex, pedidos, comodato, usuários
+├── security/     # tokens, MFA, senhas, dependências de RBAC, middlewares
+└── realtime.py   # gerenciador de conexões WebSocket por perfil
+alembic/          # migrações versionadas
+tests/            # 62 testes: fluxo de negócio + testes de ataque
+```
+
+Camadas separadas (router → service → model): as rotas só validam entrada e permissão; toda regra de estoque
+vive em `services/`, testável sem HTTP.
+
+## Fluxo principal
+
+```
+Almoxarife cria requisição ─► Gerente aprova (alçada) ─► saldo reservado
+        │                                                     │
+        ▼                                                     ▼
+  sem estoque ─► fila de compra ─► entrada em estoque ─► baixa por QR (crachá + material)
+                                                               │
+                                                               ▼
+                                              kardex encadeado + trilha de auditoria
+```
+
+## Testes
+
+62 testes automatizados, incluindo cenários de ataque:
+
+- bypass de autorização por perfil → `403`
+- força bruta → bloqueio de conta
+- injeção SQL (múltiplos payloads) e token adulterado
+- replay de refresh token → revogação da cadeia
+- MFA com TOTP real, idempotência, integridade do kardex, importação de planilha
+
+```bash
+python -m pytest -v --cov=app
+```
+
+A suíte roda em SQLite (rápido) e em **PostgreSQL 16** — bugs de timezone e de event loop do driver
+assíncrono só apareceram contra o Postgres real.
+
+## Rodando localmente
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env            # defina SECRET_KEY: openssl rand -hex 32
 
-python -m app.seed          # popula usuários, classes, materiais, colaboradores
-uvicorn app.main:app --reload
+alembic upgrade head
+python -m app.seed              # dados de demonstração
+uvicorn app.main:app --reload   # http://localhost:8000/docs
 ```
 
-Testes:
+Ou com Docker (API + PostgreSQL + Redis):
 
 ```bash
-python -m pytest -v
+docker compose up --build
 ```
 
-## Usuários de demonstração
+**Usuários de demonstração** (criados pelo seed): `almoxarife@gramo.com`, `compras@gramo.com`,
+`gerente@gramo.com` — senha definida em `app/seed.py`. Troque as senhas em qualquer ambiente real.
 
-Senha para todos: `Gramo@Forte2026!`
+## Deploy
 
-| Perfil | E-mail | Aprovação |
-|---|---|---|
-| Almoxarife | almoxarife@gramo.com | — |
-| ADM/Compras | compras@gramo.com | — |
-| Gerente | gerente@gramo.com | Aprova todos os pedidos |
+`render.yaml` provisiona API + PostgreSQL no Render, com `SECRET_KEY` gerada pela plataforma e migrações
+aplicadas no start. O frontend é servido pela Vercel.
 
----
+## Roadmap
 
-## O que está implementado e testado
+Itens que dependem da infraestrutura do cliente, não de código:
 
-### Segurança
-- **Autenticação JWT** com access token curto (15 min) + **refresh token com rotação e revogação**, com detecção de reuso (revoga a cadeia inteira se um refresh já usado é reapresentado).
-- **MFA (TOTP)** compatível com Google Authenticator/Authy — setup, ativação e verificação no login.
-- **Proteção contra brute force:** bloqueio de conta após N tentativas, com persistência garantida do contador mesmo em falha.
-- **Rate limiting** por IP (limite separado para login).
-- **Política de senha forte** (12+ caracteres, maiúscula, minúscula, número, símbolo).
-- **RBAC por perfil:** cada perfil só executa o que lhe cabe; o gerente é o aprovador único e aprova todos os pedidos encaminhados.
-- **Security headers** (HSTS, CSP, X-Frame-Options, nosniff, no-store) e header `Server` removido.
-- **Tratamento global de erros** que nunca vaza stack trace, SQL ou caminho de arquivo.
-- **CORS restrito** por origem, método e header. Documentação (`/docs`) desativada em produção.
-
-### Integridade de dados
-- **Kardex append-only com hash encadeado (SHA-256):** cada movimentação encadeia no hash da anterior; adulteração é detectável via endpoint de verificação de integridade.
-- **Reserva de saldo na aprovação** + **saldo disponível** = saldo − reservado, impedindo que dois pedidos consumam o mesmo estoque.
-- **Locking otimista** (coluna `version`) nas entidades críticas.
-- **Idempotência** via header `Idempotency-Key` — replay/duplo-clique não duplica operação.
-- **Constraints no banco** (CHECK de saldo ≥ 0, quantidade > 0) como última linha de defesa.
-- **Custo médio ponderado** em `Decimal` (nunca float).
-- **Trilha de auditoria** (quem/quando/o quê) nas ações sensíveis.
-
-### Observabilidade
-- **Logs estruturados JSON** com `request_id` (correlation) propagado por toda a request.
-- **Health checks** `/health/live` e `/health/ready`.
-
-### Cobertura de testes (23 casos)
-Fluxo de negócio completo · autenticação (sem token / inválido / adulterado) · autorização por perfil (bypass → 403) · brute force → lockout · injeção SQL (4 payloads) · não-vazamento de stack trace · security headers · aprovação do gerente · idempotência · autorização de compra · MFA (fluxo completo com TOTP real) · rotação e revogação de refresh · senha fraca · comodato · integridade do kardex.
+- SSO corporativo (Azure AD / Google Workspace) — a autenticação já é compatível com OIDC
+- Integração com ERP (SAP / TOTVS) e NF-e
+- Rate limit e idempotência em Redis (lógica já isolada; hoje em banco/memória)
+- Pipeline de CI no GitHub Actions — ver [CI.md](CI.md)
 
 ---
 
-## O que NÃO está aqui — e por quê
-
-Estes itens do roadmap **dependem de infraestrutura ou credenciais externas** que não existem em ambiente de desenvolvimento. Não é questão de código faltando; é que "funcionar" exige o ambiente real da empresa:
-
-- **SSO real (Azure AD / Google Workspace):** o código de auth já é OIDC-friendly, mas exige o tenant e as credenciais corporativas da GRAMO para conectar. Hoje entregamos JWT+MFA próprios; a troca por SSO é ponto de integração, não reescrita.
-- **Integração ERP (SAP/TOTVS) e fiscal (NF-e/SPED):** exige ambiente, contrato e credenciais do ERP da empresa.
-- **Redis / RabbitMQ / Celery:** o rate limiting e a idempotência hoje usam banco/memória; em produção migram para Redis (troca de backend, lógica já isolada). Filas exigem broker provisionado.
-- **Kubernetes, Terraform, CI/CD, DR multi-região:** infraestrutura de nuvem a provisionar.
-- **Pentest e testes de carga (k6):** exigem ambiente dedicado e ferramentas externas; a suíte automatizada já cobre a superfície de aplicação.
-
-A camada de aplicação — a parte que **é** código e **pode** ser testada — está pronta e verde. As próximas fases são de integração e infraestrutura.
+<sub>Desenvolvido por <a href="https://github.com/luizfernandoantonio345-webs">Luiz Fernando</a> para a GRAMO Engenharia.</sub>

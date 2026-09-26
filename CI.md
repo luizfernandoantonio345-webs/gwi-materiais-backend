@@ -1,6 +1,8 @@
 # CI/CD — Pipeline de Integração Contínua
 
-Dois workflows do GitHub Actions rodam a cada push e pull request, garantindo que nada quebre.
+> **Status:** especificação do pipeline. Os arquivos de workflow ainda não estão versionados neste repositório (`.github/workflows/`).
+
+Dois workflows do GitHub Actions, rodando a cada push e pull request, para garantir que nada quebre.
 
 ## Backend (`.github/workflows/ci-backend.yml`)
 
